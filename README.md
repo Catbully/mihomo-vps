@@ -17,15 +17,24 @@
 ## 快速开始
 
 ```bash
-# 交互菜单（推荐首次使用）
-bash <(curl -fsSL https://raw.githubusercontent.com/<you>/mihomo-vps/main/mihomo.sh)
+# ① 一键装（推荐）：交互菜单，缺 lib/ 时自动自举下载
+sudo bash <(curl -fsSL https://raw.githubusercontent.com/Catbully/mihomo-vps/main/mihomo.sh)
 
-# 或先克隆再跑
-git clone <repo> mihomo-vps && cd mihomo-vps
-bash mihomo.sh            # 或者 ./mihomo.sh（需先 chmod +x mihomo.sh）
+# ② 非交互：lite 预设（SS-2022 + Hysteria2），全默认值
+sudo bash <(curl -fsSL https://raw.githubusercontent.com/Catbully/mihomo-vps/main/mihomo.sh) install --yes
+
+# ③ 网络/DNS 不通的机器：显式要求临时写入 1.1.1.1（先备份，退出时还原）
+sudo bash <(curl -fsSL https://raw.githubusercontent.com/Catbully/mihomo-vps/main/mihomo.sh) install --fix-dns
+
+# ④ 或者先克隆再跑（方便改代码）
+git clone https://github.com/Catbully/mihomo-vps && cd mihomo-vps
+bash mihomo.sh            # 或 ./mihomo.sh（需先 chmod +x mihomo.sh）
 ```
 
-> **刻意不用 `curl ... | bash`**：交互菜单需要占用 stdin，管道会让菜单读不到输入。用 `bash <(...)` 或先下载。
+自举说明：单文件方式运行时脚本身边没有 `lib/`，脚本会自动从仓库下载压缩包到临时目录、前台重新执行（**前台执行**保证交互菜单仍能读终端 stdin），结束后清理临时目录。可用 `MIHOMO_MIRROR=<镜像前缀>` 走镜像，或用 `MH_REPO_SLUG=<owner/repo>` 指向自己的 fork。
+
+> **刻意写成 `bash <(curl ...)` 而不是 `curl ... | bash`**：管道会把 stdin 占掉，交互菜单就读不到你的输入了。
+
 
 ## 命令
 

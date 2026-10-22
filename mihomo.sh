@@ -12,6 +12,9 @@
 #   ./mihomo.sh status             状态与诊断
 #   ./mihomo.sh uninstall [--purge]
 #
+# 一键装（单文件自举：缺 lib/ 时自动下载仓库压缩包再执行，stdin 仍归终端）：
+#   sudo bash <(curl -fsSL https://raw.githubusercontent.com/Catbully/mihomo-vps/main/mihomo.sh)
+#
 # 设计约束（均来自实测，勿随意改动）：
 #   1. 只做"入站代理 + nftables 端口转发"，不做 TUN 网关、不做出站链式中转。
 #   2. mihomo -t 是浅校验：不校验证书、REALITY 私钥、SS 密钥长度、reality 与证书互斥。
@@ -22,6 +25,49 @@ set -Eeuo pipefail
 MH_LIBDIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib"
 MH_ASSUME_YES=0
 export MH_LIBDIR MH_ASSUME_YES
+
+# ---------- 自举 ----------
+# 用 `bash <(curl ...)` 或 `curl ... | sudo bash` 直接跑单文件时，脚本身边没有 lib/，
+# 这里自动下载仓库压缩包到临时目录并前台重新执行（前台执行保证交互菜单还能读 stdin）。
+MH_REPO_SLUG="${MH_REPO_SLUG:-Catbully/mihomo-vps}"
+MH_REPO_BRANCH="${MH_REPO_BRANCH:-main}"
+export MH_REPO_SLUG MH_REPO_BRANCH
+
+bootstrap_self() {
+  local tmp url rc=0
+  if ! command -v curl >/dev/null 2>&1; then
+    printf '[E] E_BOOTSTRAP: 自举需要 curl\n' >&2
+    exit 1
+  fi
+  if ! command -v tar >/dev/null 2>&1; then
+    printf '[E] E_BOOTSTRAP: 自举需要 tar\n' >&2
+    exit 1
+  fi
+
+  url="https://codeload.github.com/${MH_REPO_SLUG}/tar.gz/refs/heads/${MH_REPO_BRANCH}"
+  tmp="$(mktemp -d)"
+  printf '[*] 未找到 lib/ 目录，正在自举下载 %s@%s\n' "$MH_REPO_SLUG" "$MH_REPO_BRANCH" >&2
+
+  if ! curl -fsSL --retry 2 --connect-timeout 15 --max-time 180 "${MIHOMO_MIRROR:-}${url}" |
+    tar -xz -C "$tmp" --strip-components=1; then
+    rm -rf "$tmp"
+    printf '[E] E_BOOTSTRAP: 下载仓库失败。可设置 MIHOMO_MIRROR=<镜像前缀> 或 MH_REPO_SLUG=<owner/repo>\n' >&2
+    exit 1
+  fi
+  if [ ! -f "$tmp/lib/common.sh" ]; then
+    rm -rf "$tmp"
+    printf '[E] E_BOOTSTRAP: 下载内容不完整（缺 lib/common.sh）\n' >&2
+    exit 1
+  fi
+
+  bash "$tmp/mihomo.sh" "$@" || rc=$?
+  rm -rf "$tmp"
+  exit "$rc"
+}
+
+if [ ! -f "$MH_LIBDIR/common.sh" ]; then
+  bootstrap_self "$@"
+fi
 
 # shellcheck source=lib/common.sh
 . "$MH_LIBDIR/common.sh"
