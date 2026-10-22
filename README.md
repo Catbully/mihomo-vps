@@ -17,32 +17,44 @@
 ## 快速开始
 
 ```bash
-# ① 一键装（推荐）：交互菜单，缺 lib/ 时自动自举下载
-sudo bash <(curl -fsSL https://raw.githubusercontent.com/Catbully/mihomo-vps/main/mihomo.sh)
+# ① 一键装（最稳，推荐）：先落盘再跑，root 与非 root 都成立
+curl -fsSLo /tmp/mihomo.sh https://raw.githubusercontent.com/Catbully/mihomo-vps/main/mihomo.sh
+sudo bash /tmp/mihomo.sh
 
-# ② 非交互：lite 预设（SS-2022 + Hysteria2），全默认值
-sudo bash <(curl -fsSL https://raw.githubusercontent.com/Catbully/mihomo-vps/main/mihomo.sh) install --yes
+# ② 已经是 root：直接跑，不用 sudo
+bash <(curl -fsSL https://raw.githubusercontent.com/Catbully/mihomo-vps/main/mihomo.sh)
 
-# ③ 机器 DNS 坏了、连脚本都拉不下来 —— 注意 --fix-dns 在脚本内部，够不着，必须先修 DNS
+# ③ 非 root 又想一条命令：把 <(...) 放进 bash -c 内部，让进程替换发生在 sudo 里面
+sudo bash -c 'bash <(curl -fsSL https://raw.githubusercontent.com/Catbully/mihomo-vps/main/mihomo.sh)'
+
+# ④ 非交互：lite 预设（SS-2022 + Hysteria2），其余全默认
+sudo bash /tmp/mihomo.sh install --yes
+
+# ⑤ 机器 DNS 坏了、连脚本都拉不下来（curl: (6)）：先修 DNS 再下
 sudo bash -c '
   cp -a /etc/resolv.conf /root/resolv.conf.bak 2>/dev/null || true
   printf "nameserver 1.1.1.1\nnameserver 8.8.8.8\n" > /etc/resolv.conf
   bash <(curl -fsSL https://raw.githubusercontent.com/Catbully/mihomo-vps/main/mihomo.sh)
 '
 
-# ④ 脚本已经在本机能运行时，才轮到 --fix-dns 生效（会先备份 /etc/resolv.conf，退出时还原）
-bash mihomo.sh install --fix-dns
-
-# ⑤ 或者先克隆再跑（方便改代码）
+# ⑥ 先克隆再跑（方便改代码）
 git clone https://github.com/Catbully/mihomo-vps && cd mihomo-vps
 bash mihomo.sh            # 或 ./mihomo.sh（需先 chmod +x mihomo.sh）
 ```
 
-**排错第一条**：如果看到 `curl: (6) Could not resolve host: raw.githubusercontent.com`，说明本机 DNS 不通，用 ③ 那条（先写 `resolv.conf`，再下载）。`sudo: unable to resolve host` 这类提示只是 sudo 解析自己主机名失败，无害。
+### 排错
 
-自举说明：单文件方式运行时脚本身边没有 `lib/`，脚本会自动从仓库下载压缩包到临时目录、前台重新执行（**前台执行**保证交互菜单仍能读终端 stdin），结束后清理临时目录。镜像用 `MIHOMO_MIRROR=<前缀>`，fork 用 `MH_REPO_SLUG=<owner/repo>`。
+| 现象 | 真正原因 | 怎么办 |
+|---|---|---|
+| `curl: (6) Could not resolve host` | 本机 DNS 不通 | 用上表 ⑤ 先修 DNS 再跑 |
+| `bash: /dev/fd/63: No such file or directory`（常伴随 `curl: (23) Failure writing output to destination`） | **`sudo bash <(curl ...)` 不成立**：`sudo` 默认关闭多余文件描述符，`<(...)` 那条管道是父 shell 建的，进 sudo 子进程后已不存在 | 用 ①（落盘再跑）或 ③（`sudo bash -c '...'`），别写 `sudo bash <(...)` |
+| `sudo: unable to resolve host <主机名>` | 主机名不在 `/etc/hosts`，纯提示，不影响功能 | 已是 root 就别用 sudo；或 `echo "127.0.1.1 $(hostname)" >> /etc/hosts` |
+| 想非交互却进了菜单 | `bash <(curl ...)` 不带子命令就是交互菜单，重定向喂的答案会被菜单吃掉 | 写子命令，例如 `... install --yes` |
+| `[E] E_BOOTSTRAP: 下载仓库失败` | 自举下载不到 tar.gz（DNS/网络/镜像） | 按提示先修 DNS，或设 `MIHOMO_MIRROR=<镜像前缀>` |
 
-> **刻意写成 `bash <(curl ...)` 而不是 `curl ... | bash`**：管道会把 stdin 占掉，交互菜单就读不到你的输入了。
+自举说明：单文件运行时脚本身边没有 `lib/`，脚本会自动下载仓库压缩包到临时目录、前台重新执行（**前台执行**保证交互菜单仍能读终端 stdin），结束后清理临时目录。镜像用 `MIHOMO_MIRROR=<前缀>`，fork 用 `MH_REPO_SLUG=<owner/repo>`。
+
+> **刻意不用 `curl ... | bash`**：管道会把 stdin 占掉，交互菜单就读不到你的输入了。
 
 
 ## 命令
