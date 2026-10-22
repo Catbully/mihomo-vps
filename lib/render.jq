@@ -117,6 +117,20 @@ def tuic_block($s; $u):
 | ([ $users[0].users[] | select(.enabled != false) ]) as $u
 | { "log-level": ($s.log_level // "info") }
 + {
+    # 服务端必须能自己解析被代理的域名。若只依赖系统解析器，任何一台 DHCP 机器
+    # （dhclient/systemd-networkd 续租会重写 /etc/resolv.conf）或 DNS 坏掉的机器，
+    # 都会表现为"客户端连得上但所有网站超时"。
+    dns: {
+      enable: true,
+      "enhanced-mode": "normal",
+      "use-hosts": true,
+      ipv6: false,
+      "default-nameserver": ($s.dns.default_nameserver // [ "1.1.1.1", "223.5.5.5" ]),
+      nameserver: ($s.dns.nameserver // [ "1.1.1.1", "223.5.5.5", "9.9.9.9" ]),
+      fallback: ($s.dns.fallback // [])
+    }
+  }
++ {
     listeners: (
       ss_block($s; $u)
       + vless_tls_block($s; $u)

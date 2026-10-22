@@ -164,7 +164,7 @@ wizard_settings() {
   local pick_ss=0 pick_vless_tls=0 pick_reality=0 pick_trojan=0 pick_vmess=0 pick_hy2=0 pick_tuic=0
   local p_ss=0 p_vless_tls=0 p_reality=0 p_trojan=0 p_vmess=0 p_hy2=0 p_tuic=0
   local hy2_obfs='' hy2_obfs_pw='' ws_path='' rdest='' rshort='' rsn=''
-  local old_priv=''
+  local old_priv='' dns_up='' dns_srv=''
   MH_WIZ_USED=' '
 
   printf '\n%s可选协议%s\n' "$C_BLU" "$C_OFF" >&2
@@ -206,6 +206,11 @@ wizard_settings() {
   server_host="$(ask "客户端连接的服务器地址（域名或 IP）" "$(public_v4)")"
   [ -n "$server_host" ] || die E_USAGE "服务器地址不能为空"
   log_level="$(ask "日志级别（silent/error/warning/info/debug）" "info")"
+  dns_up="$(ask "DNS 上游（逗号分隔；服务端解析被代理域名用，与 /etc/resolv.conf 无关）" "1.1.1.1,223.5.5.5,9.9.9.9")"
+  dns_srv="$(printf '%s' "$dns_up" |
+    jq -Rc 'split(",") | map(gsub("^\\s+|\\s+$"; "")) | map(select(length > 0))')"
+  [ "$(printf '%s' "$dns_srv" | jq 'length')" -gt 0 ] ||
+    die E_USAGE "DNS 上游不能为空"
 
   if [ "$pick_ss" = 1 ]; then
     wiz_ask_port "Shadowsocks 端口（TCP+UDP）"
@@ -284,6 +289,7 @@ wizard_settings() {
 
   jq -n \
     --arg listen "$listen" --arg server_host "$server_host" --arg log_level "$log_level" \
+    --argjson dns_srv "$dns_srv" \
     --arg tls_mode "$tls_mode" --arg cert "$MH_CERTS/fullchain.pem" \
     --arg key "$MH_CERTS/privkey.pem" --arg sni "$sni" \
     --argjson ss_e "$pick_ss" --argjson ss_p "$p_ss" \
@@ -300,6 +306,7 @@ wizard_settings() {
       listen: $listen,
       server_host: $server_host,
       log_level: $log_level,
+      dns: { nameserver: $dns_srv, default_nameserver: ($dns_srv[0:2]) },
       tls: { mode: $tls_mode, cert: $cert, key: $key, sni: $sni },
       protocols: {
         ss:            { enabled: ($ss_e == 1),  port: $ss_p,   cipher: "2022-blake3-aes-128-gcm" },
@@ -575,5 +582,23 @@ cmd_status() {
     else
       log "nft 表 inet mihomo：未加载"
     fi
+  fi
+
+  # DNS 是这类节点最常见的"连得上但全部超时"根因，单独报一行
+  if [ -f "$MH_CONFIG" ] && jq -e '.dns.enable == true' "$MH_CONFIG" >/dev/null 2>&1; then
+    local ns first
+    ns="$(jq -r '.dns.nameserver | join(",")' "$MH_CONFIG")"
+    first="$(jq -r '.dns.nameserver[0] // ""' "$MH_CONFIG")"
+    if have_cmd dig && [ -n "$first" ]; then
+      if dig +short +time=3 +tries=1 "@$first" www.gstatic.com A >/dev/null 2>&1; then
+        log "服务端 DNS（mihomo 自带）：$ns —— 首个上游可用"
+      else
+        warn "服务端 DNS（mihomo 自带）：$ns —— 首个上游 $first 无应答，检查 53/udp 出网"
+      fi
+    else
+      log "服务端 DNS（mihomo 自带）：$ns"
+    fi
+  elif [ -f "$MH_CONFIG" ]; then
+    warn "配置里没有 dns 段：mihomo 会依赖系统 /etc/resolv.conf（DHCP 机器上随时会被改坏）"
   fi
 }
