@@ -111,7 +111,10 @@ random_hex() {
   head -c "$1" /dev/urandom | od -An -tx1 | tr -d ' \n'
 }
 
-random_password() { random_b64 18; }
+# 密码会直接出现在分享链接的 userinfo 里（trojan://pw@host、tuic://uuid:pw@host）。
+# RFC 3986 的 userinfo 不允许 '/', '+' 这类字符，务必用 base64url 字符集，
+# 否则严格解析的客户端会把密码截断成一半，表现为"认证失败"。
+random_password() { random_b64 18 | tr '+/' '-_'; }
 
 random_uuid() {
   if [ -r /proc/sys/kernel/random/uuid ]; then
