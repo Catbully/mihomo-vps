@@ -11,8 +11,12 @@
 #   ./mihomo.sh update             更新 mihomo 内核（保留配置）
 #   ./mihomo.sh status             状态与诊断
 #   ./mihomo.sh uninstall [--purge]
-#
+#   ./mihomo.sh self-install       把脚本落地到本机并安装 mihomo-vps 命令（install 会自动做）
 # 一键装（单文件自举：缺 lib/ 时自动下载仓库压缩包再执行，stdin 仍归终端）：
+#   curl -fsSLo /tmp/mihomo.sh https://raw.githubusercontent.com/Catbully/mihomo-vps/main/mihomo.sh
+#   sudo bash /tmp/mihomo.sh
+#   （已是 root 可直接 bash <(curl -fsSL <上面这个 URL>)；
+#     切勿写 sudo bash <(curl ...)：sudo 会关掉多余 fd，直接报 /dev/fd/63 不存在）
 #   sudo bash <(curl -fsSL https://raw.githubusercontent.com/Catbully/mihomo-vps/main/mihomo.sh)
 #
 # 设计约束（均来自实测，勿随意改动）：
@@ -123,7 +127,7 @@ interactive_menu() {
     printf ' 2) 修改协议与端口\n' >&2
     printf ' 3) 用户管理\n' >&2
     printf ' 4) 端口转发（nftables）\n' >&2
-    printf ' 5) 输出客户端配置\n' >&2
+    printf ' 5) 输出配置（分享链接 + proxies）\n' >&2
     printf ' 6) 状态与诊断\n' >&2
     printf ' 7) 更新内核\n' >&2
     printf ' 8) 卸载\n' >&2
@@ -156,6 +160,7 @@ main() {
     update) cmd_update "$@" ;;
     status) cmd_status "$@" ;;
     uninstall) cmd_uninstall "$@" ;;
+    self-install) cmd_self_install ;;
     -h | --help | help) usage ;;
     *) die E_USAGE "未知命令：$cmd（用 --help 查看用法）" ;;
   esac

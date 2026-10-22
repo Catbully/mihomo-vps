@@ -361,6 +361,47 @@ settings_ports() {
 }
 
 # ---------- 主流程 ----------
+# ---------- 把脚本自身落地 + 提供常驻管理命令 ----------
+# 注意：/usr/local/bin/mihomo 是 mihomo 内核本身（systemd 单元启的就是它），
+# 绝不能用 "mihomo" 命名菜单命令，否则会顶掉内核。这里用 mihomo-vps。
+MH_INSTALL_DIR=/usr/local/lib/mihomo-vps
+MH_CMD=/usr/local/bin/mihomo-vps
+export MH_INSTALL_DIR MH_CMD
+
+install_self() {
+  local src_dir f
+  src_dir="$(cd "$MH_LIBDIR/.." && pwd)"
+  if [ "$src_dir" = "$MH_INSTALL_DIR" ]; then
+    log "脚本已在 $MH_INSTALL_DIR，跳过自安装"
+    return 0
+  fi
+
+  mkdir -p "$MH_INSTALL_DIR/lib"
+  install -m 0644 "$src_dir/mihomo.sh" "$MH_INSTALL_DIR/mihomo.sh" ||
+    die E_SELF "复制 mihomo.sh 到 $MH_INSTALL_DIR 失败"
+  for f in "$src_dir"/lib/*.sh "$src_dir"/lib/*.jq; do
+    [ -f "$f" ] || continue
+    install -m 0644 "$f" "$MH_INSTALL_DIR/lib/$(basename "$f")" ||
+      die E_SELF "复制 $(basename "$f") 失败"
+  done
+  if [ -f "$src_dir/README.md" ]; then
+    install -m 0644 "$src_dir/README.md" "$MH_INSTALL_DIR/README.md"
+  fi
+
+  cat >"$MH_CMD" <<EOF
+#!/bin/sh
+# 由 mihomo-vps 安装脚本生成：打开 mihomo 服务端管理菜单
+exec bash ${MH_INSTALL_DIR}/mihomo.sh "\$@"
+EOF
+  chmod 0755 "$MH_CMD"
+  ok "已安装管理命令：${MH_CMD}（脚本落地在 ${MH_INSTALL_DIR}）"
+}
+
+cmd_self_install() {
+  need_root
+  install_self
+  log "现在可以直接运行：mihomo-vps"
+}
 cmd_install() {
   local arg
   MH_ASSUME_YES=0
@@ -403,10 +444,14 @@ cmd_install() {
   svc_nft_enable
   svc_nft_reload
 
+  install_self
+
   restore_dns
   ok "安装完成"
   cmd_clients --all
   cmd_status
+  printf '\n' >&2
+  ok "以后随时用 ${MH_CMD} 打开管理菜单（等价于 bash ${MH_INSTALL_DIR}/mihomo.sh）"
 }
 
 cmd_update() {
@@ -450,6 +495,8 @@ cmd_uninstall() {
     log "已移除 $MH_SYSCTL_FILE（运行时 sysctl 未改动）"
   fi
   rm -f "$MH_BIN"
+  rm -f "$MH_CMD"
+  rm -rf "$MH_INSTALL_DIR"
 
   if [ "$purge" = "1" ]; then
     rm -rf "$MH_HOME"

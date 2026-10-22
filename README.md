@@ -55,6 +55,18 @@ bash mihomo.sh            # 或 ./mihomo.sh（需先 chmod +x mihomo.sh）
 自举说明：单文件运行时脚本身边没有 `lib/`，脚本会自动下载仓库压缩包到临时目录、前台重新执行（**前台执行**保证交互菜单仍能读终端 stdin），结束后清理临时目录。镜像用 `MIHOMO_MIRROR=<前缀>`，fork 用 `MH_REPO_SLUG=<owner/repo>`。
 
 > **刻意不用 `curl ... | bash`**：管道会把 stdin 占掉，交互菜单就读不到你的输入了。
+## 装完之后的常驻命令
+
+`install` 会把脚本自身落地到 `/usr/local/lib/mihomo-vps/`，并生成命令 **`mihomo-vps`**：
+
+```bash
+mihomo-vps            # 打开管理菜单
+mihomo-vps status     # 任何子命令都等价于 ./mihomo.sh <子命令>
+```
+
+> ⚠️ **为什么命令不叫 `mihomo`**：`/usr/local/bin/mihomo` 是 mihomo 内核本体（systemd 单元启的就是它），同名会把内核顶掉。所以管理命令固定为 `mihomo-vps`。
+
+`install`、`user add`、`clients` 生成节点后都会**直接把分享链接与 proxies 片段打印到终端**（正文走 stdout，可重定向保存；标题走 stderr）；不想要输出就加 `--no-print`。
 
 
 ## 命令
@@ -70,7 +82,8 @@ bash mihomo.sh            # 或 ./mihomo.sh（需先 chmod +x mihomo.sh）
 ./mihomo.sh forward add --listen-port 24080 --proto tcp --to 1.2.3.4:8080 [--no-masquerade]
 ./mihomo.sh forward add --listen-port 24081 --proto tcp --redirect-to 7891
 ./mihomo.sh forward del|list|flush|apply
-./mihomo.sh clients --all [--full] [--qr]
+./mihomo.sh self-install           # 只落地脚本并生成 mihomo-vps 命令（install 会自动做）
+./mihomo.sh clients --all [--full] [--qr] [--no-print]  # 打印所有用户的链接 + proxies
 ./mihomo.sh clients --user <名字> [--full] [--qr]
 ./mihomo.sh update [tag]           # 换内核，保留配置
 ./mihomo.sh status                 # 状态与诊断

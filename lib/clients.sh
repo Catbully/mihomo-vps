@@ -8,6 +8,32 @@ proto_port() { jget ".protocols.$1.port" "$MH_SETTINGS"; }
 
 b64url() { base64 | tr -d '\n' | tr '+/' '-_' | tr -d '='; }
 
+# 生成节点后是否把链接与 proxies 直接打到终端（MH_CLIENTS_QUIET=1 时静默）
+MH_CLIENTS_QUIET=0
+
+# print_client_output <name> <dir>：正文走 stdout（可重定向），标题走 stderr
+print_client_output() {
+  local name="$1" dir="$2"
+  if [ "$MH_CLIENTS_QUIET" = "1" ]; then
+    return 0
+  fi
+  printf '\n%s──────── 用户 %s 的分享链接（%s）────────%s\n' \
+    "$C_BLU" "$name" "$dir/links.txt" "$C_OFF" >&2
+  if [ -s "$dir/links.txt" ]; then
+    cat "$dir/links.txt"
+  else
+    printf '(空)\n'
+  fi
+  printf '\n%s──────── 用户 %s 的 proxies 片段（%s）────────%s\n' \
+    "$C_BLU" "$name" "$dir/proxies.yaml" "$C_OFF" >&2
+  cat "$dir/proxies.yaml"
+  if [ -f "$dir/client.yaml" ]; then
+    printf '\n%s──────── 完整客户端配置（%s）────────%s\n' \
+      "$C_BLU" "$dir/client.yaml" "$C_OFF" >&2
+  fi
+  printf '\n' >&2
+}
+
 # write_client_user <name> <full 0|1> [qr 0|1]
 write_client_user() {
   local name="$1" full="${2:-0}" qr="${3:-0}"
@@ -211,6 +237,7 @@ EOF
   fi
 
   ok "用户 $name 的客户端产物：$dir（${#names[@]} 个节点）"
+  print_client_output "$name" "$dir"
   if [ "$qr" = "1" ]; then
     if have_cmd qrencode; then
       while IFS= read -r link; do
@@ -225,6 +252,7 @@ EOF
 
 cmd_clients() {
   local all=0 user='' full=0 qr=0
+  MH_CLIENTS_QUIET=0
   while [ $# -gt 0 ]; do
     case "$1" in
       --all) all=1 ;;
@@ -234,6 +262,7 @@ cmd_clients() {
         ;;
       --full) full=1 ;;
       --qr) qr=1 ;;
+      --no-print) MH_CLIENTS_QUIET=1 ;;
       *) die E_USAGE "clients 不认识的参数：$1" ;;
     esac
     shift
