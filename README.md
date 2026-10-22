@@ -99,6 +99,8 @@ git clone <repo> mihomo-vps && cd mihomo-vps
 
 规则写在独立表 `table inet mihomo`，由自带的 `mihomo-nft.service` 开机加载。**不会**启用系统的 `nftables.service`，也**不会**改写 `/etc/nftables.conf`。
 
+DNAT 需要内核转发能力，脚本会自动写 `/etc/sysctl.d/99-mihomo-forward.conf` 并开启 `net.ipv4.ip_forward`（目标为 IPv6 时同时开 `net.ipv6.conf.all.forwarding`），卸载时移除该 drop-in 但**不改运行时的 sysctl**。实测教训：`ip_forward=0` 时端口能连上、规则看着正常，但数据永远回不来。
+
 ## 安全与越权边界
 
 - 需要 root；所有状态文件 600，`/etc/mihomo` 与 `certs/` 700。
@@ -134,6 +136,6 @@ shellcheck --severity=warning --shell=bash --external-sources mihomo.sh lib/*.sh
 
 - **Alpine 未在实机验证**（本项目测试机是 Debian 12）。OpenRC 脚本与 busybox 差异只经过静态检查。
 - `-t` 的浅校验意味着仍有「端口绑上了但协议不通」的极小可能，脚本用本机客户端自连补最后一层。
-- REALITY 的 `dest` 是第三方站点，长期可用性不由本脚本控制（默认 `itunes.apple.com:443`，已核实支持 TLS 1.3 + h2）。
+- REALITY 的 `dest` 是第三方站点，长期可用性不由本脚本控制（默认 `itunes.apple.com:443`，已核实支持 TLS 1.3 + h2）。**REALITY 依赖服务端能解析并连通 dest**：dest 不通时现象是「连上即断」，`mihomo -t` 和端口校验都发现不了；`status` 会单独探测并告警，修好 DNS 后需 `systemctl restart mihomo` 才生效。
 - VMess WS 只有 `ws-path`，客户端若自定义 Host 头会不匹配。
 - SS-2022 的密钥长度随 cipher 变化（16B/32B），脚本按 cipher 生成对应长度。
