@@ -43,8 +43,9 @@ export MH_LIBDIR MH_ASSUME_YES
 trap 'die E_UNEXPECTED "第 ${LINENO} 行执行失败：${BASH_COMMAND}"' ERR
 trap 'restore_dns' EXIT
 
+# 只打印文件开头连续注释块，不写死行号（写死会在增删代码后把代码行当帮助输出）
 usage() {
-  sed -n '2,20p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  awk 'NR > 1 && /^#/ { sub(/^# ?/, ""); print; next } NR > 1 { exit }' "${BASH_SOURCE[0]}"
 }
 
 interactive_menu() {

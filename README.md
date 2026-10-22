@@ -22,7 +22,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/<you>/mihomo-vps/main/mihomo
 
 # 或先克隆再跑
 git clone <repo> mihomo-vps && cd mihomo-vps
-./mihomo.sh
+bash mihomo.sh            # 或者 ./mihomo.sh（需先 chmod +x mihomo.sh）
 ```
 
 > **刻意不用 `curl ... | bash`**：交互菜单需要占用 stdin，管道会让菜单读不到输入。用 `bash <(...)` 或先下载。
