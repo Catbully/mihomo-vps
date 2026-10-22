@@ -122,12 +122,26 @@ require_network() {
   fi
 
   local bak
+  local bak
   bak="/etc/resolv.conf.bak-$(date +%Y%m%d-%H%M%S)"
   cp -a /etc/resolv.conf "$bak" || die E_DNS_BROKEN "备份 /etc/resolv.conf 失败"
-  printf 'nameserver 1.1.1.1\nnameserver 8.8.8.8\n' >/etc/resolv.conf
+  # 8.8.8.8 在国内/部分机房被墙或丢包，实测常有超时，所以用 1.1.1.1 + 223.5.5.5
+  printf 'nameserver 1.1.1.1\nnameserver 223.5.5.5\n' >/etc/resolv.conf
   MH_DNS_BACKUP="$bak"
   export MH_DNS_BACKUP
-  warn "已临时写入 1.1.1.1/8.8.8.8，原文件备份在 $bak"
+  warn "已临时写入 1.1.1.1/223.5.5.5，原文件备份在 $bak"
+
+  # 关键：DHCP 机器上 dhclient 续租时会按 provider 下发的 option 重写 resolv.conf，
+  # 手改的内容会被覆盖回去。加一条 supersede 才算持久修，否则装完过一阵又坏。
+  if have_cmd dhclient && [ -f /etc/dhcp/dhclient.conf ] &&
+    ! grep -q 'mihomo-vps' /etc/dhcp/dhclient.conf; then
+    cp -a /etc/dhcp/dhclient.conf "/etc/dhcp/dhclient.conf.bak-$(date +%Y%m%d-%H%M%S)"
+    {
+      printf '\n# 由 mihomo-vps 添加：避免 DHCP 续租把解析器改回不可用地址\n'
+      printf 'supersede domain-name-servers 1.1.1.1, 223.5.5.5;\n'
+    } >>/etc/dhcp/dhclient.conf
+    warn "已给 dhclient 加 supersede（下次续租起生效），原配置已备份"
+  fi
   net_check "$MH_GITHUB_DL" || die E_DNS_BROKEN "修正 DNS 后仍无法访问 GitHub，放弃安装"
 }
 

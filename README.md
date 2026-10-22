@@ -51,6 +51,15 @@ bash mihomo.sh            # 或 ./mihomo.sh（需先 chmod +x mihomo.sh）
 | `sudo: unable to resolve host <主机名>` | 主机名不在 `/etc/hosts`，纯提示，不影响功能 | 已是 root 就别用 sudo；或 `echo "127.0.1.1 $(hostname)" >> /etc/hosts` |
 | 想非交互却进了菜单 | `bash <(curl ...)` 不带子命令就是交互菜单，重定向喂的答案会被菜单吃掉 | 写子命令，例如 `... install --yes` |
 | `[E] E_BOOTSTRAP: 下载仓库失败` | 自举下载不到 tar.gz（DNS/网络/镜像） | 按提示先修 DNS，或设 `MIHOMO_MIRROR=<镜像前缀>` |
+| 客户端能连上、但访问任何网站都超时；服务端日志出现 `dial DIRECT ... error: dns resolve failed` | **服务端解析不了被代理域名**。DHCP 机器（`dhclient` 续租）会不断重写 `/etc/resolv.conf`，把可用解析器换回 provider 下发的坏地址 | 配置里已有自带 `dns` 段（本项目默认写入），与系统解析器解耦；系统侧持久修是给 dhclient 加 `supersede domain-name-servers 1.1.1.1, 223.5.5.5;`（`--fix-dns` 会自动做） |
+
+**排查"节点超时"的正确顺序**（本项目实测沉淀）：
+
+1. `ss -Hlntp | grep mihomo` —— 端口是否真在监听、属主是不是 mihomo
+2. 从外部做 **TLS 握手**（不是只有 TCP 连通）看是否拿到自签证书：能握手 = 端口与服务都正常
+3. 看 `journalctl -u mihomo`：出现 `dial DIRECT <你的IP> --> <域名> error: dns resolve failed`，说明**客户端已经连上并认证成功**，问题在服务端 DNS，不是节点不通
+4. `mihomo-vps status` 会直接报服务端 DNS 上游是否可用
+
 
 自举说明：单文件运行时脚本身边没有 `lib/`，脚本会自动下载仓库压缩包到临时目录、前台重新执行（**前台执行**保证交互菜单仍能读终端 stdin），结束后清理临时目录。镜像用 `MIHOMO_MIRROR=<前缀>`，fork 用 `MH_REPO_SLUG=<owner/repo>`。
 
