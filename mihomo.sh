@@ -34,7 +34,7 @@ MH_REPO_BRANCH="${MH_REPO_BRANCH:-main}"
 export MH_REPO_SLUG MH_REPO_BRANCH
 
 bootstrap_self() {
-  local tmp url rc=0
+  local tmp url rc=0 ok=0
   if ! command -v curl >/dev/null 2>&1; then
     printf '[E] E_BOOTSTRAP: 自举需要 curl\n' >&2
     exit 1
@@ -48,10 +48,31 @@ bootstrap_self() {
   tmp="$(mktemp -d)"
   printf '[*] 未找到 lib/ 目录，正在自举下载 %s@%s\n' "$MH_REPO_SLUG" "$MH_REPO_BRANCH" >&2
 
-  if ! curl -fsSL --retry 2 --connect-timeout 15 --max-time 180 "${MIHOMO_MIRROR:-}${url}" |
-    tar -xz -C "$tmp" --strip-components=1; then
+  # 先走镜像（若设置），失败再直连
+  if [ -n "${MIHOMO_MIRROR:-}" ]; then
+    if curl -fsSL --retry 2 --connect-timeout 15 --max-time 180 "${MIHOMO_MIRROR}${url}" |
+      tar -xz -C "$tmp" --strip-components=1 2>/dev/null; then
+      ok=1
+    else
+      rm -rf "$tmp"
+      tmp="$(mktemp -d)"
+    fi
+  fi
+  if [ "$ok" -eq 0 ]; then
+    if curl -fsSL --retry 2 --connect-timeout 15 --max-time 180 "$url" |
+      tar -xz -C "$tmp" --strip-components=1 2>/dev/null; then
+      ok=1
+    fi
+  fi
+  if [ "$ok" -eq 0 ]; then
     rm -rf "$tmp"
-    printf '[E] E_BOOTSTRAP: 下载仓库失败。可设置 MIHOMO_MIRROR=<镜像前缀> 或 MH_REPO_SLUG=<owner/repo>\n' >&2
+    {
+      printf '[E] E_BOOTSTRAP: 下载仓库失败（%s）\n' "$url" >&2
+      printf '  先确认本机 DNS 能用。若域名都解析不了，修完 DNS 再重试：\n' >&2
+      printf '    cp -a /etc/resolv.conf /root/resolv.conf.bak 2>/dev/null || true\n' >&2
+      printf '    printf "nameserver 1.1.1.1\\nnameserver 8.8.8.8\\n" > /etc/resolv.conf\n' >&2
+      printf '  国内网络可设 MIHOMO_MIRROR=<镜像前缀>；用 fork 可设 MH_REPO_SLUG=<owner/repo>\n' >&2
+    }
     exit 1
   fi
   if [ ! -f "$tmp/lib/common.sh" ]; then

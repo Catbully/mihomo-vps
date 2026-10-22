@@ -23,15 +23,24 @@ sudo bash <(curl -fsSL https://raw.githubusercontent.com/Catbully/mihomo-vps/mai
 # ② 非交互：lite 预设（SS-2022 + Hysteria2），全默认值
 sudo bash <(curl -fsSL https://raw.githubusercontent.com/Catbully/mihomo-vps/main/mihomo.sh) install --yes
 
-# ③ 网络/DNS 不通的机器：显式要求临时写入 1.1.1.1（先备份，退出时还原）
-sudo bash <(curl -fsSL https://raw.githubusercontent.com/Catbully/mihomo-vps/main/mihomo.sh) install --fix-dns
+# ③ 机器 DNS 坏了、连脚本都拉不下来 —— 注意 --fix-dns 在脚本内部，够不着，必须先修 DNS
+sudo bash -c '
+  cp -a /etc/resolv.conf /root/resolv.conf.bak 2>/dev/null || true
+  printf "nameserver 1.1.1.1\nnameserver 8.8.8.8\n" > /etc/resolv.conf
+  bash <(curl -fsSL https://raw.githubusercontent.com/Catbully/mihomo-vps/main/mihomo.sh)
+'
 
-# ④ 或者先克隆再跑（方便改代码）
+# ④ 脚本已经在本机能运行时，才轮到 --fix-dns 生效（会先备份 /etc/resolv.conf，退出时还原）
+bash mihomo.sh install --fix-dns
+
+# ⑤ 或者先克隆再跑（方便改代码）
 git clone https://github.com/Catbully/mihomo-vps && cd mihomo-vps
 bash mihomo.sh            # 或 ./mihomo.sh（需先 chmod +x mihomo.sh）
 ```
 
-自举说明：单文件方式运行时脚本身边没有 `lib/`，脚本会自动从仓库下载压缩包到临时目录、前台重新执行（**前台执行**保证交互菜单仍能读终端 stdin），结束后清理临时目录。可用 `MIHOMO_MIRROR=<镜像前缀>` 走镜像，或用 `MH_REPO_SLUG=<owner/repo>` 指向自己的 fork。
+**排错第一条**：如果看到 `curl: (6) Could not resolve host: raw.githubusercontent.com`，说明本机 DNS 不通，用 ③ 那条（先写 `resolv.conf`，再下载）。`sudo: unable to resolve host` 这类提示只是 sudo 解析自己主机名失败，无害。
+
+自举说明：单文件方式运行时脚本身边没有 `lib/`，脚本会自动从仓库下载压缩包到临时目录、前台重新执行（**前台执行**保证交互菜单仍能读终端 stdin），结束后清理临时目录。镜像用 `MIHOMO_MIRROR=<前缀>`，fork 用 `MH_REPO_SLUG=<owner/repo>`。
 
 > **刻意写成 `bash <(curl ...)` 而不是 `curl ... | bash`**：管道会把 stdin 占掉，交互菜单就读不到你的输入了。
 
